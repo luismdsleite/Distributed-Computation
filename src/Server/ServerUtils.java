@@ -30,7 +30,7 @@ import Hash.ServerKey;
  */
 public class ServerUtils {
     final static int JOIN_TRIES = 3;
-    final static int JOIN_TIMEOUT = 10 * 1;
+    final static int JOIN_TIMEOUT = 10 * 1000;
 
     final static int MAX_JOIN_RESP_DELAY = 5 * 1000;
 

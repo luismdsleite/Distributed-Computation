@@ -1,0 +1,43 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Launch TestUdpReceiver",
+            "request": "launch",
+            "mainClass": "Server.TestUdpReceiver",
+            "projectName": "Distributed-Computation_33cddae3"
+        },
+        {
+            "type": "java",
+            "name": "Launch Current File",
+            "request": "launch",
+            "mainClass": "${file}"
+        },
+        {
+            "type": "java",
+            "name": "Launch Client",
+            "request": "launch",
+            "mainClass": "Client.Client",
+            "projectName": "Distributed-Computation_33cddae3"
+        },
+        {
+            "type": "java",
+            "name": "Launch Server",
+            "request": "launch",
+            "mainClass": "Server.Server",
+            "projectName": "Distributed-Computation_33cddae3",
+            "args": "224.0.0.0 3456 127.0.0.1 6666"
+        },
+        {
+            "type": "java",
+            "name": "Launch TcpClient",
+            "request": "launch",
+            "mainClass": "Server.TcpClient",
+            "projectName": "Distributed-Computation_33cddae3"
+        }
+    ]
+}

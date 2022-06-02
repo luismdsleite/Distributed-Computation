@@ -30,7 +30,7 @@ import Hash.ServerKey;
  */
 public class ServerUtils {
     final static int JOIN_TRIES = 3;
-    final static int JOIN_TIMEOUT = 10 * 1000;
+    final static int JOIN_TIMEOUT = 5 * 1000;
 
     final static int MAX_JOIN_RESP_DELAY = 5 * 1000;
 
@@ -175,6 +175,7 @@ public class ServerUtils {
     }
 
     /**
+     * Function used to decode all UDP messages
      * @param buffer
      * @param key
      * @return
@@ -187,7 +188,7 @@ public class ServerUtils {
      * 
      * @throws IOException
      */
-    public static List<String> receiveJoinOrLeaveMsg(ByteBuffer buffer, SelectionKey key) throws IOException {
+    public static List<String> receiveMembershipMsg(ByteBuffer buffer, SelectionKey key) throws IOException {
         DatagramChannel udpChannel = (DatagramChannel) key.channel();
         udpChannel.receive(buffer);
 
@@ -226,7 +227,7 @@ public class ServerUtils {
             var logCounter = -1;
             var suppBuff = ByteBuffer.allocate(Log.LOG_BYTE_SIZE);
             att.add(active_nodes.getEntrySet().iterator());
-            att.add(lastLogs.iterator());
+            att.add(lastLogs.descendingIterator());
             att.add(logCounter);
             att.add(suppBuff);
         }
@@ -341,6 +342,22 @@ public class ServerUtils {
     }
 
     /**
+     * register a TCP Socket
+     * 
+     * @param selector
+     * @param socket
+     * @throws IOException
+     */
+    public static void registerTCPSocket(Selector selector, int interestOps,
+            Object att)
+            throws IOException {
+        SocketChannel socketChannel;
+        socketChannel = SocketChannel.open();
+        socketChannel.configureBlocking(false);
+        socketChannel.register(selector, interestOps, att);
+    }
+
+    /**
      * Connect to a host via TCP and register the socket
      */
     public static void connectAndRegisterTCPSocket(Selector selector, String targetHost, int port, int interestOps,
@@ -373,15 +390,15 @@ public class ServerUtils {
             if (lastLogs.size() == 32)
                 lastLogs.removeLast();
             lastLogs.addFirst(log);
-        } else if (match.getCount() > log.getCount()) {
+        } else if (match.getCount() < log.getCount()) {
             match.setCount(log.getCount());
+
             // If the log already existed then we remove it and append it in the start
             if (lastLogs.contains(match))
                 lastLogs.remove(match);
-
-            if (lastLogs.size() == 32)
+            else if (lastLogs.size() == 32)
                 lastLogs.removeLast();
-            lastLogs.add(log);
+            lastLogs.addFirst(log);
         }
     }
 
@@ -407,7 +424,6 @@ public class ServerUtils {
                 lastLogs.removeLast();
             lastLogs.addFirst(log);
             active_nodes.addServer(new ServerLabel(log));
-            System.out.println("Added something");
         }
         // He can only join is he was not in the cluster and vice-versa
         else if ((mode == JOIN_MSG && !match.isActive()) || (mode == LEAVE_MSG && match.isActive())) {
@@ -423,9 +439,9 @@ public class ServerUtils {
                 active_nodes.addServer(new ServerLabel(match));
             else
                 active_nodes.removeServer(new ServerLabel(match));
-
-            System.out.println("Added something");
         }
+
+        System.out.println("Merge Log:");
         System.out.println(active_nodes);
         System.err.println("----------------------------------");
         System.out.println(logs);
@@ -433,4 +449,38 @@ public class ServerUtils {
         System.out.println(lastLogs);
     }
 
+    /**
+     * similar to {@link #receiveMembershipMsg} but it blocks until the message is
+     * received
+     * 
+     * @param ip
+     * @param port
+     * @return
+     * @throws IOException
+     */
+    public static List<String> receiveMembershipMsgBlocking(String ip, int port) throws IOException {
+        InetAddress group = InetAddress.getByName(ip);
+        MulticastSocket mSocket = new MulticastSocket(port);
+        mSocket.joinGroup(new InetSocketAddress(group, 0), null);
+
+        // System.out.println("waiting for input");
+        byte[] buf = new byte[1 + 4 + 4]; // Mode (join or leave) + Server Name (IP/Node_ID) + TCP Port
+        DatagramPacket packet = new DatagramPacket(buf, buf.length);
+        mSocket.receive(packet);
+        mSocket.close();
+
+        // Getting Mode
+        String mode = "" + (char) buf[0];
+        // Getting IPV4 Address
+        String node_id = "";
+        for (int i = 1; i < 4; i++) {
+            node_id += Integer.toString(Byte.toUnsignedInt(buf[i])) + ".";
+        }
+        node_id += Integer.toString(Byte.toUnsignedInt(buf[4]));
+        // Getting Port Address
+        String tcpPort = "" + ByteBuffer.wrap(buf).getInt(5);
+        mSocket.close();
+        System.out.println("Received: " + Arrays.asList(mode, node_id, tcpPort));
+        return Arrays.asList(mode, node_id, tcpPort);
+    }
 }

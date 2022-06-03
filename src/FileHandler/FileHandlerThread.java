@@ -41,7 +41,7 @@ public class FileHandlerThread implements Runnable {
         this.inChannel = inChannel;
         inChannel.configureBlocking(true);
         this.storePort = storePort;
-        this.filePath = filePath + "/files";
+        this.filePath = filePath;
         // Creating the folder where all files will be stored
         Files.createDirectories(Paths.get(this.filePath));
     }
@@ -68,23 +68,24 @@ public class FileHandlerThread implements Runnable {
             var parsedMsg = msg.split(" ");
             var msgCode = parsedMsg[0].charAt(0);
             var clientIP = parsedMsg[1];
-            var fileName = hashStr(parsedMsg[2]);
+            var fileName = filePath + hashStr(parsedMsg[2]);
 
 
-            CompletionHandler handler = new CompletionHandler<Integer,Integer>() {
+            CompletionHandler<Integer,Object> handler = new CompletionHandler<Integer,Object>() {
                 @Override
-                public void completed(Integer result, Integer attachment) {
+                public void completed(Integer result, Object attachment) {
                     System.out.println("Completed");
                 }
 
                 @Override
-                public void failed(Throwable exc, Integer attachment) {
-                    System.out.println("Failed");
+                public void failed(Throwable exc, Object attachment) {
+                    System.out.println("Failed" + exc);
                 }
             };
 
             try {
-                Socket tcpSocket = new Socket( clientIP, 6660);
+                Socket tcpSocket = new Socket(clientIP, 6660);
+                while(!tcpSocket.isBound());
                 var out = new PrintWriter(tcpSocket.getOutputStream(), true);
                 InputStream in = tcpSocket.getInputStream();
 
@@ -93,7 +94,7 @@ public class FileHandlerThread implements Runnable {
                     case ServerUtils.PUT_MSG :
                         try {
                             AsynchronousFileChannel fileChannel = AsynchronousFileChannel.open(Paths.get(fileName), StandardOpenOption.WRITE, StandardOpenOption.CREATE);
-
+                            
                             DataInputStream dis = new DataInputStream(in);
                             int len = dis.readInt();
                             byte[] data = new byte[len];
@@ -102,13 +103,11 @@ public class FileHandlerThread implements Runnable {
                                 dis.readFully(data);
                             }
 
-                            ByteBuffer fileBuffer = ByteBuffer.allocate(data.length );
+                            ByteBuffer fileBuffer = ByteBuffer.allocate(data.length);
                             fileBuffer.put(data);
                             long position = 0;
                             fileBuffer.flip();
                             fileChannel.write(fileBuffer, position, buffer, handler);
-
-                            fileChannel.close();
                 
                         } catch (IOException e) {
                             System.out.println(e.toString());

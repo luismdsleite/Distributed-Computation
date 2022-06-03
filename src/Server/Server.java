@@ -85,7 +85,7 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
         Files.createDirectories(Paths.get("./" + node_id));
         
         // Creating fileHandler thread
-        fileHandler = new Thread(new FileHandlerThread(readFileHandler, this.membership_port - 1, "./" + node_id));
+        fileHandler = new Thread(new FileHandlerThread(readFileHandler, this.membership_port - 1, "./" + node_id + "/files/"));
         fileHandler.start();
         
         // Files.createFile(Paths.get("./" + node_id + "/logs.txt"));

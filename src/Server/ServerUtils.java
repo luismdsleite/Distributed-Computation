@@ -22,6 +22,7 @@ import java.util.Map.Entry;
 
 import Hash.ServerLabel;
 import Hash.ServerTree;
+import Membership.LogSaverThread;
 import Hash.ServerKey;
 
 /**
@@ -577,4 +578,8 @@ public class ServerUtils {
         return Arrays.asList(mode, node_id, tcpPort);
     }
 
+    public static void saveLogs(Map<String, Log> logs, String node_id){
+        Thread thread = new Thread(new LogSaverThread(logs.entrySet().iterator(), "./" + node_id));
+        thread.start();
+    }
 }

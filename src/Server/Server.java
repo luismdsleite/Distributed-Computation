@@ -1,5 +1,6 @@
 package Server;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -27,6 +28,7 @@ import Hash.ServerKey;
 import Hash.ServerLabel;
 import Hash.ServerTree;
 import Membership.MembershipInterface;
+import Membership.LogSaverThread;
 import Membership.MemberShipUtils;
 
 /**
@@ -51,6 +53,8 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
     // Used as a queue, contains the last 32 logs received
     private final LinkedList<Log> lastLogs;
 
+    // File Handler Thread
+    private final Thread fileHandler;
     // Pipes used to receive join and leave commands through RMI
     private final SinkChannel writeFileHandler;
 
@@ -59,8 +63,6 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
 
     // Used to delay sendJoinRespMsg()
     private final Random random;
-
-    private final Thread fileHandler;
 
     public Server(String ip_mcast_addr, String ip_mcast_port, String node_id, String membership_port)
             throws IOException {
@@ -83,13 +85,38 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
 
         // Creating the folder where all data will be stored
         Files.createDirectories(Paths.get("./" + node_id));
-        
+
         // Creating fileHandler thread
         fileHandler = new Thread(new FileHandlerThread(readFileHandler, this.membership_port - 1, "./" + node_id));
         fileHandler.start();
-        
-        // Files.createFile(Paths.get("./" + node_id + "/logs.txt"));
 
+        try {
+            // Checking if any logs were already saved
+            ByteBuffer data = ByteBuffer.wrap(Files.readAllBytes(Paths.get("./" + node_id + "/log.txt")))
+                    .asReadOnlyBuffer();
+            ByteBuffer suppBuff = ByteBuffer.allocate(Log.LOG_BYTE_SIZE);
+            while (data.hasRemaining()) {
+                // Node ID
+                suppBuff.put(data.get());
+                suppBuff.put(data.get());
+                suppBuff.put(data.get());
+                suppBuff.put(data.get());
+                // Port
+                suppBuff.putInt(data.getInt());
+                // Counter
+                suppBuff.putInt(data.getInt());
+                suppBuff.flip();
+                var log = Log.logDeserializer(suppBuff);
+                logs.put(log.getNodeIDstr(), log);
+                suppBuff.clear();
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            // TODO: handle exception
+        }
+
+        System.out.println("Started with logs: " + logs);
         // ----------------------RMI---------------------
         try {
             MemberShipUtils.startRMI(this, node_id, "membership");
@@ -277,12 +304,14 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
                                     case ServerUtils.PUT_MSG:
                                     case ServerUtils.GET_MSG:
                                     case ServerUtils.DEL_MSG:
+
                                         var fileHash = ServerLabel.hashString(parsedMsg.get(2));
                                         var targetServerLabel = active_nodes.getServer(new ServerKey(fileHash));
                                         if (targetServerLabel.getNodeID().equals(node_id)) {
                                             buffer.put(msg.getBytes());
                                             buffer.flip();
                                             writeFileHandler.write(buffer);
+
                                         } else {
 
                                         }
@@ -318,6 +347,11 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
                                         if (host.equals(node_id)) {
                                             isActive = false;
                                         }
+                                        Thread thread = new Thread(
+                                                new LogSaverThread(logs.entrySet().iterator(), "./" + node_id));
+                                        thread.start();
+                                        while (thread.isAlive())
+                                            ;
                                         break;
                                 }
                                 break;
@@ -402,14 +436,15 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
         }
 
         System.out.println("Leave()");
+
     }
 
     /**
      * Joins a cluster. Executed in response to {@link #join()}
      * <p>
-     * Sends a UDP Broadcast message to the {@link Server#ip_mcast_addr} and awaits
-     * for 3 Membership answers. It then starts executing its normal functions as a
-     * part of the cluster.
+     * Sends a {@link ServerUtils#JOIN_MSG} message and awaits for 3 Membership
+     * answers. It then starts executing its normal functions as a part of the
+     * cluster.
      * <p>
      * If less than 3 TCP Connections are received then it begins its normal
      * functions in the cluster after it timeouts.
@@ -510,6 +545,8 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
             lastLogs.add(selfLog);
             active_nodes.addServer(selfLabel);
         }
+
+        ServerUtils.saveLogs(logs, node_id);
 
         System.out.println(active_nodes);
         System.err.println("1----------------------------------1");

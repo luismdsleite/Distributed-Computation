@@ -8,7 +8,7 @@ import java.nio.ByteBuffer;
  */
 public class Log {
     // Serializing this object costs this many bytes
-    static final int LOG_BYTE_SIZE = 4 + Integer.BYTES * 2;
+    public static final int LOG_BYTE_SIZE = 4 + Integer.BYTES * 2;
     // node_id is saved in bytes instead of a String so that its size always
     // remains constant.
     private final byte[] node_id;

@@ -11,8 +11,10 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -32,7 +34,7 @@ public class ServerUtils {
     final static int JOIN_TRIES = 3;
     final static int JOIN_TIMEOUT = 5 * 1000;
 
-    final static int MAX_JOIN_RESP_DELAY = 5 * 1000;
+    final static int MAX_JOIN_RESP_DELAY = 4 * 1000;
 
     final static int TCP_SERVER_SOCKET = 1;
     final static int TCP_SOCKET = 2;
@@ -42,6 +44,11 @@ public class ServerUtils {
     final static char JOIN_MSG = 'j';
     final static char LEAVE_MSG = 'l';
     final static char JOIN_RESP_MSG = 'r';
+    final static char PUT_MSG = 'p';
+    final static char GET_MSG = 'g';
+    final static char DEL_MSG = 'd';
+
+    final static List<Character> TCP_VALID_MSGS = Arrays.asList(PUT_MSG, GET_MSG, DEL_MSG);
 
     // Network Interface used by UDP Multicast
     static String niName = "lo";
@@ -51,9 +58,10 @@ public class ServerUtils {
      * users to {@link Server#active_nodes} and merges received logs to
      * {@link Server#logs}.
      * <p>
-     * Message format: a list of the cluster's active nodes, a dupe log (to finalize
-     * the end) and a list of the last 32 membership event logs. If less than 32
-     * membership events exist then dupe logs will be used to fill the remainder.
+     * Message format: a char equal to {@value #JOIN_RESP_MSG}, a list of the
+     * cluster's active nodes, a dupe log (to finalize the end) and a list of the
+     * last 32 membership event logs. If less than 32 membership events exist then
+     * dupe logs will be used to fill the remainder.
      * 
      * @param buffer
      * @param key
@@ -158,10 +166,81 @@ public class ServerUtils {
     }
 
     /**
-     * Used to broadcast a join or leave message via UDP
+     * Handler for TCP Messages when the server is executing. To check what msg
+     * codes are supported go to {@link #TCP_VALID_MSGS}.
      * 
-     * @param mode 'j' for join 'l' for leave
+     * @param key
+     * @param buffer
      * @throws IOException
+     */
+    public static List<String> receiveTCPMsg(Selector selector, SelectionKey key, ByteBuffer buffer)
+            throws IOException {
+        @SuppressWarnings("unchecked")
+        List<Object> att = (List<Object>) key.attachment();
+        SocketChannel client = (SocketChannel) key.channel();
+        var bRead = client.read(buffer);
+        buffer.flip();
+        // If its the first time reading from this socket
+        if (att.size() == 1) {
+            var msgCode = buffer.getChar();
+            bRead -= Character.BYTES;
+
+            // IF the msg code is not supported close the connection
+            if (!TCP_VALID_MSGS.contains(msgCode)) {
+                System.out.println("Expected any one of " + ServerUtils.TCP_VALID_MSGS + " received " + msgCode);
+                buffer.clear();
+                client.close();
+                key.cancel();
+            }
+            var msgLength = buffer.getInt();
+            bRead -= Integer.BYTES;
+            var suppBuff = ByteBuffer.allocate(512);
+            att.add(msgLength);
+            att.add(suppBuff);
+            att.add(msgCode);
+        }
+
+        var msgLength = (int) att.get(1);
+        var suppBuff = (ByteBuffer) att.get(2);
+        var msgCode = (char) att.get(3);
+        if (bRead == -1) {
+            client.close();
+            key.cancel();
+            buffer.clear();
+        }
+
+        while (bRead > 0) {
+            var b = buffer.get();
+            suppBuff.put(b);
+            bRead--;
+            msgLength--;
+        }
+
+        if (msgLength == 0) {
+            suppBuff.flip();
+            var msg = new String(suppBuff.array(), 0, suppBuff.limit(), StandardCharsets.UTF_8);
+            suppBuff.clear();
+            buffer.clear();
+            client.close();
+            key.cancel();
+            var parsedMsg = new ArrayList<String>();
+            parsedMsg.add(msgCode + "");
+            for (var s : msg.split(" ")) {
+                parsedMsg.add(s);
+            }
+            return parsedMsg;
+        }
+
+        buffer.clear();
+        att.remove(1);
+        att.add(1, msgLength);
+        return Collections.emptyList();
+    }
+
+    /**
+     * Used to broadcast a {@link #JOIN_MSG} or a {@link #LEAVE_MSG} via UDP
+     * 
+     * @param mode {@value #JOIN_MSG} for join {@value #LEAVE_MSG} for leave
      */
     public static void sendJoinOrLeaveMsg(char mode, String ip_mcast_addr, int ip_mcast_port, String nodeID,
             int nodePort)
@@ -503,4 +582,5 @@ public class ServerUtils {
         System.out.println("Received: " + Arrays.asList(mode, node_id, tcpPort));
         return Arrays.asList(mode, node_id, tcpPort);
     }
+
 }

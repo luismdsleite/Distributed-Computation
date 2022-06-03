@@ -27,18 +27,18 @@ import Membership.MemberShipUtils;
 
 /**
  * 
- * @param ip_mcast_addr IP of the multicast group (UDP)
- * @param ip_mcast_port Port of the multicast group (UDP)
- * @param node_id       IP address of the node (Or a unique id in case it is
- *                      tested in a localhost)
- * @param store_port    TCP Port used to store
+ * @param ip_mcast_addr   IP of the multicast group (UDP)
+ * @param ip_mcast_port   Port of the multicast group (UDP)
+ * @param node_id         IP address of the node (Or a unique id in case it is
+ *                        tested in a localhost)
+ * @param membership_port TCP Port used to store
  * @throws RemoteException
  */
 public class Server extends UnicastRemoteObject implements MembershipInterface {
 
     private final String ip_mcast_addr;
     private final int ip_mcast_port;
-    private final int store_port;
+    private final int membership_port;
     private final String node_id;
     // Nodes who according to the logs are still active
     private ServerTree active_nodes;
@@ -57,12 +57,12 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
     private Selector selector;
     private boolean isActive;
 
-    public Server(String ip_mcast_addr, String ip_mcast_port, String node_id, String store_port)
+    public Server(String ip_mcast_addr, String ip_mcast_port, String node_id, String membership_port)
             throws IOException {
         // super();
         this.ip_mcast_addr = ip_mcast_addr;
         this.ip_mcast_port = Integer.parseInt(ip_mcast_port);
-        this.store_port = Integer.parseInt(store_port);
+        this.membership_port = Integer.parseInt(membership_port);
         this.node_id = node_id;
         this.active_nodes = new ServerTree();
         this.logs = new HashMap<>();
@@ -113,7 +113,7 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
      * @param args {@link #ip_mcast_addr}
      * @param args {@linkplain #ip_mcast_port}
      * @param args {@link #node_id}
-     * @param args {@link #store_port}
+     * @param args {@link #membership_port}
      * @throws IOException
      */
     public static void main(String[] args) throws IOException {
@@ -141,7 +141,7 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
             // ---------------------------- TCP --------------------------
             selector = Selector.open();
             serverSocket = ServerSocketChannel.open();
-            serverSocket.bind(new InetSocketAddress(node_id, store_port));
+            serverSocket.bind(new InetSocketAddress(node_id, membership_port));
             serverSocket.configureBlocking(false);
             serverSocket.register(selector, SelectionKey.OP_ACCEPT, new ArrayList<>());
             // ---------------------------- TCP --------------------------
@@ -179,15 +179,11 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
                     SelectionKey key = iter.next();
                     iter.remove();
 
-                    if (!key.isValid()) {
-                        continue;
-                    }
-
                     /*
-                     * if a key is interested in connected it means a join was triggered and now we
+                     * If a key is interested in connecting it means a join was triggered and now we
                      * want to execute the join response in a random time slot
                      */
-                    if (key.isConnectable()) {
+                    if (key.isValid() && key.isConnectable()) {
                         @SuppressWarnings("unchecked")
                         var att = (List<Object>) key.attachment();
                         var msgType = (char) att.get(0);
@@ -223,7 +219,7 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
                     }
 
                     // TCP ServerSocket
-                    if (key.isAcceptable()) {
+                    if (key.isValid() && key.isAcceptable()) {
                         ServerUtils.registerTCPSocket(selector, serverSocket, SelectionKey.OP_READ,
                                 new ArrayList<>(Arrays.asList(ServerUtils.TCP_SOCKET)));
                     }
@@ -231,12 +227,34 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
                      * Since we receive a lot of diferent types of messages (UDP,TCP,Pipe), we
                      * distinguish them with a attachment that is appended to the key.
                      */
-                    if (key.isReadable()) {
+                    if (key.isValid() && key.isReadable()) {
                         @SuppressWarnings("unchecked")
                         var att = (List<Object>) key.attachment();
                         var id = (int) att.get(0);
                         switch (id) {
                             case ServerUtils.TCP_SOCKET:
+                                List<String> parsedMsg = Collections.emptyList();
+                                try {
+                                    parsedMsg = ServerUtils.receiveTCPMsg(selector, key, buffer);
+                                    if (parsedMsg.isEmpty())
+                                        continue;
+                                    // System.out.println(parsedMsg);
+                                } catch (Exception e) {
+                                    // TODO: handle exception
+                                }
+                                if (!parsedMsg.isEmpty()) {
+                                    var mode = parsedMsg.get(0).charAt(0);
+                                    System.out.println(parsedMsg);
+                                    switch (mode) {
+                                        case ServerUtils.PUT_MSG:
+                                        case ServerUtils.GET_MSG:
+                                        case ServerUtils.DEL_MSG:
+                                            break;
+
+                                        default:
+                                            break;
+                                    }
+                                }
                                 break;
                             case ServerUtils.UDP_MULTICAST:
                                 System.out.println("Received UDP");
@@ -270,13 +288,17 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
                         }
                     }
                     // Join Response, Sink Channel or Multicast Log messages
-                    if (key.isWritable()) {
+                    if (key.isValid() && key.isWritable()) {
                         @SuppressWarnings("unchecked")
                         var att = (List<Object>) key.attachment();
                         var mode = (char) att.get(0);
                         switch (mode) {
                             case ServerUtils.JOIN_RESP_MSG:
-                                ServerUtils.sendJoinRespMsg(key, active_nodes, lastLogs);
+                                try {
+                                    ServerUtils.sendJoinRespMsg(key, active_nodes, lastLogs);
+                                } catch (Exception e) {
+                                    // TODO: handle exception
+                                }
                                 break;
 
                             default:
@@ -317,7 +339,8 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
             return;
         }
         try {
-            ServerUtils.sendJoinOrLeaveMsg(ServerUtils.JOIN_MSG, ip_mcast_addr, ip_mcast_port, node_id, store_port);
+            ServerUtils.sendJoinOrLeaveMsg(ServerUtils.JOIN_MSG, ip_mcast_addr, ip_mcast_port, node_id,
+                    membership_port);
         } catch (IOException e) {
             e.printStackTrace();
             System.err.println(e);
@@ -334,7 +357,8 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
         }
 
         try {
-            ServerUtils.sendJoinOrLeaveMsg(ServerUtils.LEAVE_MSG, ip_mcast_addr, ip_mcast_port, node_id, store_port);
+            ServerUtils.sendJoinOrLeaveMsg(ServerUtils.LEAVE_MSG, ip_mcast_addr, ip_mcast_port, node_id,
+                    membership_port);
         } catch (IOException e) {
             e.printStackTrace();
             System.err.println(e);
@@ -363,11 +387,11 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
         ServerSocketChannel serverSocket;
         selector = Selector.open();
         serverSocket = ServerSocketChannel.open();
-        serverSocket.bind(new InetSocketAddress(node_id, store_port));
+        serverSocket.bind(new InetSocketAddress(node_id, membership_port));
         serverSocket.configureBlocking(false);
         serverSocket.register(selector, SelectionKey.OP_ACCEPT);
 
-        System.out.println("Opened TCP Port at " + store_port);
+        System.out.println("Opened TCP Port at " + membership_port);
         int connectionsFinalized = 0;
         // Sending a UDP Multicast Message and awaiting reply via TCP
         for (int i = 0; i < ServerUtils.JOIN_TRIES; i++) {
@@ -395,21 +419,25 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
                             timeoutIn = System.currentTimeMillis() + ServerUtils.JOIN_TIMEOUT;
                         }
                         if (key.isReadable()) {
-                            if (ServerUtils.receiveJoinRespMsg(buffer, key, active_nodes, logs, lastLogs)) {
-                                connectionsFinalized++;
+                            try {
+                                if (ServerUtils.receiveJoinRespMsg(buffer, key, active_nodes, logs, lastLogs)) {
+                                    connectionsFinalized++;
 
-                                // DEBUG
-                                System.out.println("REACHED");
-                                System.out.println(logs);
-                                System.out.println("------------");
-                                System.out.println(lastLogs);
+                                    // DEBUG
+                                    System.out.println("REACHED");
+                                    System.out.println(logs);
+                                    System.out.println("------------");
+                                    System.out.println(lastLogs);
+                                }
+                            } catch (Exception e) {
+                                // TODO: handle exception
                             }
                             // Reseting timeout
                             timeoutIn = System.currentTimeMillis() + ServerUtils.JOIN_TIMEOUT;
                         }
                     }
                 }
-            } catch (IOException | ClassNotFoundException e) {
+            } catch (IOException e) {
                 // TODO Auto-generated catch block
                 e.printStackTrace();
             } catch (Exception e2) {
@@ -424,7 +452,7 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
                 // Sending join
                 try {
                     ServerUtils.sendJoinOrLeaveMsg(ServerUtils.JOIN_MSG, ip_mcast_addr, ip_mcast_port, node_id,
-                            store_port);
+                            membership_port);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -440,7 +468,7 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
 
         // If we are the first node in the cluster we add ourself to the logs
         if (connectionsFinalized == 0) {
-            var selfLog = new Log(node_id, this.store_port);
+            var selfLog = new Log(node_id, this.membership_port);
             var selfLabel = new ServerLabel(selfLog);
             logs.put(node_id, selfLog);
             lastLogs.add(selfLog);

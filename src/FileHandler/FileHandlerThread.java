@@ -122,8 +122,11 @@ public class FileHandlerThread implements Runnable {
                             ByteBuffer fileBuffer = ByteBuffer.allocate(fileSize);
                             fileChannel.read(fileBuffer, 0, buffer, handler);
 
-                            
 
+                            out.println(fileSize);
+                        
+
+                    
                             out.println(fileBuffer.array());
                             out.flush();
     

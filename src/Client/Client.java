@@ -1,10 +1,12 @@
 package Client;
 
 import java.io.BufferedReader;
+import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintWriter;
@@ -99,10 +101,21 @@ public class Client {
         if (op.equals("get")) {
           try {
             Socket fileSocket = serverSocket.accept();
-            BufferedReader in = new BufferedReader(new InputStreamReader(fileSocket.getInputStream()));
+            InputStream in = fileSocket.getInputStream();
 
-            String fileName = in.readLine();
-            System.out.println("Received file: " + fileName);
+
+            DataInputStream dis = new DataInputStream(in);
+            int len = dis.readInt();
+            byte[] data = new byte[len];
+
+            if (len > 0) {
+                dis.readFully(data);
+            }
+
+
+            Files.write(Paths.get(opnd), data);
+
+          
             serverSocket.close();
           } catch (IOException e1) {
             e1.printStackTrace();

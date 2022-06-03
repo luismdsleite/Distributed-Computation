@@ -1,10 +1,22 @@
 package Client;
 
+import java.io.BufferedReader;
 import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.PrintWriter;
 import java.net.MalformedURLException;
+import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.rmi.*;
+import java.util.Scanner;
+
 import Membership.MemberShipUtils;
 
 public class Client {
@@ -18,6 +30,7 @@ public class Client {
    */
   public static void main(String args[]) throws Exception {
     var clientIP = "127.0.0.66";
+    var clientPort = 6660;
     // Membership:
     System.out.println("Connecting to node " + args[0]);
     var node_id = args[0];
@@ -39,8 +52,7 @@ public class Client {
         }
         break;
       case "put":
-      case "get":
-      case "delete":
+        // criar socket e enviar dados
         var opnd = args[3];
         Socket socket = new Socket(node_id, port);
         DataOutputStream dOut = new DataOutputStream(socket.getOutputStream());
@@ -51,6 +63,76 @@ public class Client {
         out.put(msg);
         out.flip();
         dOut.write(out.array(), 0, out.limit());
+        dOut.flush();
+        socket.close();
+
+        // wait for tcp connection
+        try {
+          ServerSocket serverSocket = new ServerSocket(clientPort);
+          Socket fileSocket = serverSocket.accept();
+
+          // Read Local File
+          try {
+            byte[] data = Files.readAllBytes(Paths.get(opnd));
+            
+            OutputStream outFileSocket = socket.getOutputStream(); 
+            DataOutputStream dos = new DataOutputStream(outFileSocket);
+        
+            dos.writeInt(data.length);
+            if (data.length > 0) {
+                dos.write(data, 0, data.length);
+            }
+
+            outFileSocket.close();
+          } catch (FileNotFoundException e) {
+            System.out.println("An error occurred.");
+            e.printStackTrace();
+          }
+          serverSocket.close();
+
+        } catch(IOException e1) {
+          e1.printStackTrace();
+        }
+        
+        break ; 
+      case "get":
+       // criar socket e receber dados
+        var opnd2 = args[3];
+        Socket socket2 = new Socket(node_id, port);
+        DataOutputStream dOut2 = new DataOutputStream(socket2.getOutputStream());
+        var msg2 = ("" + clientIP + " " + opnd2).getBytes();
+        ByteBuffer out2 = ByteBuffer.allocate(512);
+        out2.putChar(op.charAt(0));
+        out2.putInt(msg2.length);
+        out2.put(msg2);
+        out2.flip();
+        dOut2.write(out2.array(), 0, out2.limit());
+
+        try {
+          ServerSocket serverSocket = new ServerSocket(clientPort);
+          Socket fileSocket = serverSocket.accept();
+          BufferedReader in = new BufferedReader(new InputStreamReader(fileSocket.getInputStream()));
+
+
+          String fileName = in.readLine();
+          System.out.println("Received file: " + fileName);
+        } catch(IOException e1) {
+          e1.printStackTrace();
+
+        }
+        break;
+
+      case "delete":
+        var opnd3 = args[3];
+        Socket socket3 = new Socket(node_id, port);
+        DataOutputStream dOut3 = new DataOutputStream(socket3.getOutputStream());
+        var msg3 = ("" + clientIP + " " + opnd3).getBytes();
+        ByteBuffer out3 = ByteBuffer.allocate(512);
+        out3.putChar(op.charAt(0));
+        out3.putInt(msg3.length);
+        out3.put(msg3);
+        out3.flip();
+        dOut3.write(out3.array(), 0, out3.limit());
         break;
 
       default:

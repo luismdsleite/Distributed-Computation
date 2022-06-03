@@ -89,6 +89,7 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
          * The server is always either executing or waiting for a join() message
          */
         List<String> msg;
+
         while (true) {
             while (true) {
                 // Listening to UDP messages and checking if its a join request with our node id
@@ -419,12 +420,14 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
             if (connectionsFinalized == 3)
                 break;
 
-            // Sending join
-            try {
-                ServerUtils.sendJoinOrLeaveMsg(ServerUtils.JOIN_MSG, ip_mcast_addr, ip_mcast_port, node_id, store_port);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            if (i != ServerUtils.JOIN_TRIES - 1)
+                // Sending join
+                try {
+                    ServerUtils.sendJoinOrLeaveMsg(ServerUtils.JOIN_MSG, ip_mcast_addr, ip_mcast_port, node_id,
+                            store_port);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
         }
         // Closing the TCP socket
         try {

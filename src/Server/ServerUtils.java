@@ -47,7 +47,7 @@ public class ServerUtils {
     static String niName = "lo";
 
     /**
-     * Parses the membership information received via TCP. It appends existing
+     * Parses {@link #JOIN_RESP_MSG} received via TCP. It appends existing
      * users to {@link Server#active_nodes} and merges received logs to
      * {@link Server#logs}.
      * <p>
@@ -77,6 +77,18 @@ public class ServerUtils {
         if (key.attachment() == null) {
             // Support buffer used to facilitate the byte parsing
             var suppBuff = ByteBuffer.allocate(Log.LOG_BYTE_SIZE);
+
+            // Checking if the msg is indeed of type JOIN_RESP_MSG
+            var debug = buffer.getChar();
+            if (debug != JOIN_RESP_MSG) {
+                System.out.println("Expected join response, got " + debug + " read " + bRead);
+                client.close();
+                key.cancel();
+                buffer.clear();
+                return false;
+            }
+            bRead -= Character.BYTES;
+
             // Boolean used to know when we finished parsing all the active nods
             var receivedAllNodes = false;
             // Int to keep track of the amount of logs received
@@ -176,6 +188,7 @@ public class ServerUtils {
 
     /**
      * Function used to decode all UDP messages
+     * 
      * @param buffer
      * @param key
      * @return
@@ -207,7 +220,8 @@ public class ServerUtils {
     }
 
     /**
-     * TCP message triggered by {@link ServerUtils#receiveJoinOrLeaveMsg}.
+     * TCP message triggered by {@link #receiveMembershipMsg}. Sends a
+     * {@link #JOIN_RESP_MSG}
      * <p>
      * Sends all active nodes {@link Server#active_nodes} and the last 32 membership
      * events {@link Server#logs}
@@ -230,6 +244,12 @@ public class ServerUtils {
             att.add(lastLogs.descendingIterator());
             att.add(logCounter);
             att.add(suppBuff);
+
+            // Sending a header
+            suppBuff.putChar(JOIN_RESP_MSG);
+            suppBuff.flip();
+            client.write(suppBuff);
+            suppBuff.clear();
         }
 
         // Getting iterators and counter

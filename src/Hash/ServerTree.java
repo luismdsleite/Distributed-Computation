@@ -17,6 +17,10 @@ public class ServerTree {
         return serverTree;
     }
 
+    public boolean isEmpty() {
+        return serverTree.isEmpty();
+    }
+
     public void addServer(ServerLabel server) {
         serverTree.put(server.getRangeStart(), server);
     }
@@ -25,7 +29,7 @@ public class ServerTree {
         serverTree.remove(server.getRangeStart());
     }
 
-    public boolean containsServer(ServerLabel server){
+    public boolean containsServer(ServerLabel server) {
         return serverTree.containsKey(server.getRangeStart());
     }
 

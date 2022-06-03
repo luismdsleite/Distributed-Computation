@@ -369,16 +369,33 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
                                         ServerUtils.registerTCPSocket(selector,
                                                 SelectionKey.OP_CONNECT, new ArrayList<>(Arrays
                                                         .asList(ServerUtils.JOIN_RESP_MSG, executeIn, host, port)));
+
+                                        var serverToSend = active_nodes
+                                                .getServer(new ServerKey(ServerLabel.hashString(node_id)));
+
+                                        // If the server who joined took responsibility for some of our keys
+                                        if (serverToSend.getNodeID().equals(host)) {
+                                            var sendMsg = ServerUtils.JOIN_RESP_MSG + " " + host + " " + port;
+                                            writeFileHandler.write(ByteBuffer.wrap(sendMsg.getBytes()));
+                                        }
                                         break;
                                     case ServerUtils.LEAVE_MSG:
+                                        Thread thread = ServerUtils.saveLogs(logs, rootPath, lastLogs);
                                         // If the leave msg is for me
                                         if (host.equals(node_id)) {
                                             isActive = false;
-                                            Thread thread = ServerUtils.saveLogs(logs, rootPath, lastLogs);
                                             // Waiting for logs to be saved
                                             while (thread.isAlive())
                                                 ;
+                                            if (!active_nodes.isEmpty()) {
+                                                var targetServer = active_nodes
+                                                        .getServer(new ServerKey(ServerLabel.hashString(node_id)));
+                                                targetServer.getNodeID();
+                                                var sendMsg = ServerUtils.LEAVE_RESP_MSG + " "
+                                                        + targetServer.getNodeID() + " " + targetServer.getPort();
+                                                writeFileHandler.write(ByteBuffer.wrap(sendMsg.getBytes()));
 
+                                            }
                                         }
                                         break;
                                 }

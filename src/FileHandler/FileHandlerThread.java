@@ -31,7 +31,6 @@ import Hash.ServerKey;
 import Hash.ServerLabel;
 import Server.ServerUtils;
 
-
 public class FileHandlerThread implements Runnable {
     SourceChannel inChannel;
     private int storePort;
@@ -45,8 +44,6 @@ public class FileHandlerThread implements Runnable {
         // Creating the folder where all files will be stored
         Files.createDirectories(Paths.get(this.filePath));
     }
-
-   
 
     @Override
     public void run() {
@@ -70,8 +67,7 @@ public class FileHandlerThread implements Runnable {
             var clientIP = parsedMsg[1];
             var fileName = filePath + hashStr(parsedMsg[2]);
 
-
-            CompletionHandler<Integer,Object> handler = new CompletionHandler<Integer,Object>() {
+            CompletionHandler<Integer, Object> handler = new CompletionHandler<Integer, Object>() {
                 @Override
                 public void completed(Integer result, Object attachment) {
                     System.out.println("Completed");
@@ -84,17 +80,23 @@ public class FileHandlerThread implements Runnable {
             };
 
             try {
-                Socket tcpSocket = new Socket(clientIP, 6660);
-                while(!tcpSocket.isBound());
-                var out = new PrintWriter(tcpSocket.getOutputStream(), true);
-                InputStream in = tcpSocket.getInputStream();
+                Socket tcpSocket = null;
+                PrintWriter out = null;
+                InputStream in = null;
+                if (!(msgCode == ServerUtils.LEAVE_RESP_MSG || msgCode == ServerUtils.JOIN_RESP_MSG)) {
+                    tcpSocket = new Socket(clientIP, 6660);
+                    while (!tcpSocket.isBound())
+                        ;
+                    out = new PrintWriter(tcpSocket.getOutputStream(), true);
+                    in = tcpSocket.getInputStream();
+                }
 
-
-                switch(msgCode) {
-                    case ServerUtils.PUT_MSG :
+                switch (msgCode) {
+                    case ServerUtils.PUT_MSG:
                         try {
-                            AsynchronousFileChannel fileChannel = AsynchronousFileChannel.open(Paths.get(fileName), StandardOpenOption.WRITE, StandardOpenOption.CREATE);
-                            
+                            AsynchronousFileChannel fileChannel = AsynchronousFileChannel.open(Paths.get(fileName),
+                                    StandardOpenOption.WRITE, StandardOpenOption.CREATE);
+
                             DataInputStream dis = new DataInputStream(in);
                             int len = dis.readInt();
                             byte[] data = new byte[len];
@@ -108,34 +110,30 @@ public class FileHandlerThread implements Runnable {
                             long position = 0;
                             fileBuffer.flip();
                             fileChannel.write(fileBuffer, position, buffer, handler);
-                
+
                         } catch (IOException e) {
                             System.out.println(e.toString());
                         }
-                        
-                            break ;
-                    case ServerUtils.GET_MSG :
+
+                        break;
+                    case ServerUtils.GET_MSG:
                         try {
-                            AsynchronousFileChannel fileChannel = AsynchronousFileChannel.open(Paths.get(fileName), StandardOpenOption.READ);
-                            
+                            AsynchronousFileChannel fileChannel = AsynchronousFileChannel.open(Paths.get(fileName),
+                                    StandardOpenOption.READ);
+
                             int fileSize = (int) Files.size(Paths.get(fileName));
                             ByteBuffer fileBuffer = ByteBuffer.allocate(fileSize);
                             fileChannel.read(fileBuffer, 0, buffer, handler);
 
-                            
-
                             out.println(fileBuffer.array());
                             out.flush();
-    
-                            
+
                         } catch (IOException e) {
                             System.out.println(e.toString());
                         }
 
-                       
-    
-                        break ;
-                    case ServerUtils.DEL_MSG :
+                        break;
+                    case ServerUtils.DEL_MSG:
                         try {
                             Files.delete(Paths.get(fileName));
                             out.println("File Deleted");
@@ -143,32 +141,29 @@ public class FileHandlerThread implements Runnable {
                             System.out.println(e.toString());
                             out.println("Error File not found");
                         }
-                       
-                        
-                         break ;
-    
-    
-
+                        break;
+                    case ServerUtils.LEAVE_RESP_MSG:
+                        System.out.println("thread leaveresp: " + Arrays.asList(parsedMsg));
+                        break;
+                    case ServerUtils.JOIN_RESP_MSG:
+                        System.out.println("thread joinresp: " + Arrays.asList(parsedMsg));
+                        break;
                 }
 
-                out.close();
-                in.close();
-                tcpSocket.close();
+                if (out != null)
+                    out.close();
+                if (in != null)
+                    in.close();
+                if (tcpSocket != null)
+                    tcpSocket.close();
 
             } catch (IOException e1) {
                 // TODO Auto-generated catch block
                 e1.printStackTrace();
             }
 
-
-
-        
-            
-          
-
-
-            System.out.println("Thread Received: " + Arrays.asList(parsedMsg));
-            System.out.println(fileName);
+            // System.out.println("Thread Received: " + Arrays.asList(parsedMsg));
+            // System.out.println(fileName);
             buffer.clear();
         }
     }

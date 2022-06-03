@@ -14,7 +14,6 @@ import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -32,7 +31,7 @@ import Hash.ServerKey;
  */
 public class ServerUtils {
     final static int JOIN_TRIES = 3;
-    final static int JOIN_TIMEOUT = 5 * 1;
+    final static int JOIN_TIMEOUT = 5 * 1000;
 
     final static int MAX_JOIN_RESP_DELAY = 4 * 1000;
 

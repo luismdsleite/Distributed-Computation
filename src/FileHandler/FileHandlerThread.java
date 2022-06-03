@@ -3,7 +3,12 @@ package FileHandler;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.Pipe.SourceChannel;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Arrays;
+
+import Hash.ServerKey;
+import Hash.ServerLabel;
 
 public class FileHandlerThread implements Runnable {
     SourceChannel inChannel;
@@ -14,7 +19,9 @@ public class FileHandlerThread implements Runnable {
         this.inChannel = inChannel;
         inChannel.configureBlocking(true);
         this.storePort = storePort;
-        this.filePath = filePath;
+        this.filePath = filePath + "/files";
+        // Creating the folder where all files will be stored
+        Files.createDirectories(Paths.get(this.filePath));
     }
 
     @Override
@@ -33,10 +40,17 @@ public class FileHandlerThread implements Runnable {
                 continue;
             }
             var msg = new String(buffer.array());
+            // Msg Code, Client IP, File Name
             var parsedMsg = msg.split(" ");
-            // System.out.println(msg);
-            System.out.println(Arrays.asList(parsedMsg));
+            var fileName = hashStr(parsedMsg[2]);
+
+            System.out.println("Thread Received: " + Arrays.asList(parsedMsg));
+            System.out.println(fileName);
             buffer.clear();
         }
+    }
+
+    private String hashStr(String in) {
+        return ServerLabel.bytesToHex(new ServerKey(ServerLabel.hashString(in)));
     }
 }

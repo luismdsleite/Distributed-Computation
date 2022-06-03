@@ -16,6 +16,8 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.Pipe.SinkChannel;
 import java.nio.channels.Pipe.SourceChannel;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.rmi.*;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.*;
@@ -79,9 +81,14 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
         writeFileHandler.configureBlocking(true);
         SourceChannel readFileHandler = FileHandlerPipe.source();
 
+        // Creating the folder where all data will be stored
+        Files.createDirectories(Paths.get("./" + node_id));
+        
         // Creating fileHandler thread
-        fileHandler = new Thread(new FileHandlerThread(readFileHandler, this.membership_port - 1, "./"));
+        fileHandler = new Thread(new FileHandlerThread(readFileHandler, this.membership_port - 1, "./" + node_id));
         fileHandler.start();
+        
+        // Files.createFile(Paths.get("./" + node_id + "/logs.txt"));
 
         // ----------------------RMI---------------------
         try {

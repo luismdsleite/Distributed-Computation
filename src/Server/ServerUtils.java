@@ -32,7 +32,7 @@ import Hash.ServerKey;
  */
 public class ServerUtils {
     final static int JOIN_TRIES = 3;
-    final static int JOIN_TIMEOUT = 5 * 1000;
+    final static int JOIN_TIMEOUT = 5 * 1;
 
     final static int MAX_JOIN_RESP_DELAY = 4 * 1000;
 
@@ -173,7 +173,7 @@ public class ServerUtils {
      * @param buffer
      * @throws IOException
      */
-    public static List<String> receiveTCPMsg(Selector selector, SelectionKey key, ByteBuffer buffer)
+    public static String receiveTCPMsg(Selector selector, SelectionKey key, ByteBuffer buffer)
             throws IOException {
         @SuppressWarnings("unchecked")
         List<Object> att = (List<Object>) key.attachment();
@@ -223,18 +223,13 @@ public class ServerUtils {
             buffer.clear();
             client.close();
             key.cancel();
-            var parsedMsg = new ArrayList<String>();
-            parsedMsg.add(msgCode + "");
-            for (var s : msg.split(" ")) {
-                parsedMsg.add(s);
-            }
-            return parsedMsg;
+            return msgCode + " " + msg;
         }
 
         buffer.clear();
         att.remove(1);
         att.add(1, msgLength);
-        return Collections.emptyList();
+        return "";
     }
 
     /**

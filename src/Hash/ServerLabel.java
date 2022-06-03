@@ -10,7 +10,7 @@ import java.security.NoSuchAlgorithmException;
  */
 public class ServerLabel {
 
-    private static MessageDigest digest;
+    public static MessageDigest digest;
     static {
         String algorithm = "SHA-256";
         try {
@@ -63,5 +63,9 @@ public class ServerLabel {
             hexString.append(hex);
         }
         return hexString.toString();
+    }
+
+    public static byte[] hashString(String in){
+        return ServerLabel.digest.digest(in.getBytes());
     }
 }

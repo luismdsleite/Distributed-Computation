@@ -20,6 +20,8 @@ import java.rmi.*;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.*;
 
+import FileHandler.FileHandlerThread;
+import Hash.ServerKey;
 import Hash.ServerLabel;
 import Hash.ServerTree;
 import Membership.MembershipInterface;
@@ -49,13 +51,14 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
 
     // Pipes used to receive join and leave commands through RMI
     private final SinkChannel writeFileHandler;
-    private final SourceChannel readFileHandler;
+
+    private Selector selector;
+    private boolean isActive;
 
     // Used to delay sendJoinRespMsg()
     private final Random random;
 
-    private Selector selector;
-    private boolean isActive;
+    private final Thread fileHandler;
 
     public Server(String ip_mcast_addr, String ip_mcast_port, String node_id, String membership_port)
             throws IOException {
@@ -73,7 +76,12 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
         // Pipe used to redirect put(),get(),delete() msg
         Pipe FileHandlerPipe = Pipe.open();
         writeFileHandler = FileHandlerPipe.sink();
-        readFileHandler = FileHandlerPipe.source();
+        writeFileHandler.configureBlocking(true);
+        SourceChannel readFileHandler = FileHandlerPipe.source();
+
+        // Creating fileHandler thread
+        fileHandler = new Thread(new FileHandlerThread(readFileHandler, this.membership_port - 1, "./"));
+        fileHandler.start();
 
         // ----------------------RMI---------------------
         try {
@@ -232,29 +240,50 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
                         var att = (List<Object>) key.attachment();
                         var id = (int) att.get(0);
                         switch (id) {
+                            /**
+                             * In here we can receive various types of messages so we distinguish them by
+                             * the first char in the receiveTCPMsg() method.
+                             */
                             case ServerUtils.TCP_SOCKET:
-                                List<String> parsedMsg = Collections.emptyList();
+                                String msg = "";
                                 try {
-                                    parsedMsg = ServerUtils.receiveTCPMsg(selector, key, buffer);
-                                    if (parsedMsg.isEmpty())
-                                        continue;
-                                    // System.out.println(parsedMsg);
+                                    msg = ServerUtils.receiveTCPMsg(selector, key, buffer);
                                 } catch (Exception e) {
                                     // TODO: handle exception
                                 }
-                                if (!parsedMsg.isEmpty()) {
-                                    var mode = parsedMsg.get(0).charAt(0);
-                                    System.out.println(parsedMsg);
-                                    switch (mode) {
-                                        case ServerUtils.PUT_MSG:
-                                        case ServerUtils.GET_MSG:
-                                        case ServerUtils.DEL_MSG:
-                                            break;
+                                if (msg.isEmpty())
+                                    continue;
 
-                                        default:
-                                            break;
-                                    }
+                                System.out.println("Received via TCP: " + msg);
+                                var parsedMsg = new ArrayList<String>();
+                                for (var s : msg.split(" ")) {
+                                    parsedMsg.add(s);
                                 }
+                                var msgCode = parsedMsg.get(0).charAt(0);
+
+                                // Take actions based on the message code
+                                switch (msgCode) {
+                                    /*
+                                     * If is destinated for our server foward it through the pipe else we
+                                     * forward it to the correct server
+                                     */
+                                    case ServerUtils.PUT_MSG:
+                                    case ServerUtils.GET_MSG:
+                                    case ServerUtils.DEL_MSG:
+                                        var fileHash = ServerLabel.hashString(parsedMsg.get(2));
+                                        var targetServerLabel = active_nodes.getServer(new ServerKey(fileHash));
+                                        if (targetServerLabel.getNodeID().equals(node_id)) {
+                                            buffer.put(msg.getBytes());
+                                            buffer.flip();
+                                            writeFileHandler.write(buffer);
+                                        } else {
+
+                                        }
+
+                                        buffer.clear();
+                                        break;
+                                }
+
                                 break;
                             case ServerUtils.UDP_MULTICAST:
                                 System.out.println("Received UDP");

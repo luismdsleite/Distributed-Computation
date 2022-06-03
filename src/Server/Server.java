@@ -86,13 +86,18 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
         // Creating the folder where all data will be stored
         Files.createDirectories(Paths.get("./" + node_id));
 
+        // Checking if the file exists
+        if (!Files.exists(Paths.get("./" + node_id + "/logs"))) {
+            Files.createFile(Paths.get("./" + node_id + "/logs"));
+        }
         // Creating fileHandler thread
-        fileHandler = new Thread(new FileHandlerThread(readFileHandler, this.membership_port - 1, "./" + node_id + "/files/"));
+        fileHandler = new Thread(
+                new FileHandlerThread(readFileHandler, this.membership_port - 1, "./" + node_id + "/files/"));
         fileHandler.start();
 
         try {
             // Checking if any logs were already saved
-            ByteBuffer data = ByteBuffer.wrap(Files.readAllBytes(Paths.get("./" + node_id + "/log.txt")))
+            ByteBuffer data = ByteBuffer.wrap(Files.readAllBytes(Paths.get("./" + node_id + "/logs")))
                     .asReadOnlyBuffer();
             ByteBuffer suppBuff = ByteBuffer.allocate(Log.LOG_BYTE_SIZE);
             while (data.hasRemaining()) {
@@ -348,7 +353,7 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
                                             isActive = false;
                                         }
                                         Thread thread = new Thread(
-                                                new LogSaverThread(logs.entrySet().iterator(), "./" + node_id));
+                                                new LogSaverThread(logs.entrySet().iterator(), "./" + node_id + "/"));
                                         thread.start();
                                         while (thread.isAlive())
                                             ;
@@ -546,7 +551,7 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
             active_nodes.addServer(selfLabel);
         }
 
-        ServerUtils.saveLogs(logs, node_id);
+        ServerUtils.saveLogs(logs, "./" + node_id + "/");
 
         System.out.println(active_nodes);
         System.err.println("1----------------------------------1");

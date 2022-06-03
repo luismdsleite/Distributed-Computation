@@ -25,7 +25,7 @@ public class LogSaverThread implements Runnable {
         var suppBuff = ByteBuffer.allocate(Log.LOG_BYTE_SIZE);
         // Not including the boolean parameter
         try {
-            FileOutputStream output = new FileOutputStream(path + "/log.txt");
+            FileOutputStream output = new FileOutputStream(path + "logs");
             // Sending all active nodes
             while (logsIter.hasNext()) {
                 var log = logsIter.next().getValue();

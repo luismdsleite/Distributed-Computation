@@ -28,7 +28,6 @@ import Hash.ServerKey;
 import Hash.ServerLabel;
 import Hash.ServerTree;
 import Membership.MembershipInterface;
-import Membership.LogSaverThread;
 import Membership.MemberShipUtils;
 
 /**
@@ -61,6 +60,8 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
     private Selector selector;
     private boolean isActive;
 
+    private final String rootPath;
+
     // Used to delay sendJoinRespMsg()
     private final Random random;
 
@@ -76,7 +77,7 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
         this.lastLogs = new LinkedList<>();
         this.random = new Random();
         this.isActive = false;
-
+        this.rootPath = "./" + node_id + "/";
         // Pipe used to redirect put(),get(),delete() msg
         Pipe FileHandlerPipe = Pipe.open();
         writeFileHandler = FileHandlerPipe.sink();
@@ -87,14 +88,15 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
         Files.createDirectories(Paths.get("./" + node_id));
 
         // Checking if the file exists
-        if (!Files.exists(Paths.get("./" + node_id + "/logs"))) {
-            Files.createFile(Paths.get("./" + node_id + "/logs"));
+        if (!Files.exists(Paths.get(this.rootPath + "logs"))) {
+            Files.createFile(Paths.get(this.rootPath + "logs"));
         }
         // Creating fileHandler thread
         fileHandler = new Thread(
-                new FileHandlerThread(readFileHandler, this.membership_port - 1, "./" + node_id + "/files/"));
+                new FileHandlerThread(readFileHandler, this.membership_port - 1, this.rootPath + "files/"));
         fileHandler.start();
 
+        // Inside this try we load previous logs and lastLogs files
         try {
             // Checking if any logs were already saved
             ByteBuffer data = ByteBuffer.wrap(Files.readAllBytes(Paths.get("./" + node_id + "/logs")))
@@ -115,6 +117,25 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
                 logs.put(log.getNodeIDstr(), log);
                 suppBuff.clear();
             }
+            // Getting the last 32 logs
+            data = ByteBuffer.wrap(Files.readAllBytes(Paths.get("./" + node_id + "/logs")))
+                    .asReadOnlyBuffer();
+            suppBuff = ByteBuffer.allocate(Log.LOG_BYTE_SIZE);
+            while (data.hasRemaining()) {
+                // Node ID
+                suppBuff.put(data.get());
+                suppBuff.put(data.get());
+                suppBuff.put(data.get());
+                suppBuff.put(data.get());
+                // Port
+                suppBuff.putInt(data.getInt());
+                // Counter
+                suppBuff.putInt(data.getInt());
+                suppBuff.flip();
+                var log = Log.logDeserializer(suppBuff);
+                lastLogs.add(log);
+                suppBuff.clear();
+            }
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -122,6 +143,7 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
         }
 
         System.out.println("Started with logs: " + logs);
+        System.out.println("Started with Lastlogs: " + lastLogs);
         // ----------------------RMI---------------------
         try {
             MemberShipUtils.startRMI(this, node_id, "membership");
@@ -341,6 +363,7 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
                                      * time (to avoid flooding)
                                      */
                                     case ServerUtils.JOIN_MSG:
+                                        ServerUtils.saveLogs(logs, rootPath, lastLogs);
                                         long executeIn = random.nextInt(ServerUtils.MAX_JOIN_RESP_DELAY + 1)
                                                 + System.currentTimeMillis();
                                         ServerUtils.registerTCPSocket(selector,
@@ -351,12 +374,12 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
                                         // If the leave msg is for me
                                         if (host.equals(node_id)) {
                                             isActive = false;
+                                            Thread thread = ServerUtils.saveLogs(logs, rootPath, lastLogs);
+                                            // Waiting for logs to be saved
+                                            while (thread.isAlive())
+                                                ;
+
                                         }
-                                        Thread thread = new Thread(
-                                                new LogSaverThread(logs.entrySet().iterator(), "./" + node_id + "/"));
-                                        thread.start();
-                                        while (thread.isAlive())
-                                            ;
                                         break;
                                 }
                                 break;
@@ -551,7 +574,7 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
             active_nodes.addServer(selfLabel);
         }
 
-        ServerUtils.saveLogs(logs, "./" + node_id + "/");
+        ServerUtils.saveLogs(logs, rootPath, lastLogs);
 
         System.out.println(active_nodes);
         System.err.println("1----------------------------------1");

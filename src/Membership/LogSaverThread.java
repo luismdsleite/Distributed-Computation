@@ -14,10 +14,12 @@ import Server.Log;
 public class LogSaverThread implements Runnable {
     private Iterator<Entry<String, Log>> logsIter;
     private String path;
+    private Iterator<Log> lastLogsIter;
 
-    public LogSaverThread(Iterator<Entry<String, Log>> logsIter, String path) {
+    public LogSaverThread(Iterator<Entry<String, Log>> logsIter, Iterator<Log> lastLogsIter, String path) {
         this.logsIter = logsIter;
         this.path = path;
+        this.lastLogsIter = lastLogsIter;
     }
 
     @Override
@@ -34,6 +36,18 @@ public class LogSaverThread implements Runnable {
                 suppBuff.clear();
             }
             output.close();
+
+            FileOutputStream output2 = new FileOutputStream(path + "lastLogs");
+            // Sending all active nodes
+            while (lastLogsIter.hasNext()) {
+                var log = lastLogsIter.next();
+                Log.logSerializer(suppBuff, log);
+                output2.write(suppBuff.array());
+                suppBuff.clear();
+            }
+            output2.close();
+
+            System.out.println("Just saved!");
         } catch (IOException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();

@@ -578,8 +578,9 @@ public class ServerUtils {
         return Arrays.asList(mode, node_id, tcpPort);
     }
 
-    public static void saveLogs(Map<String, Log> logs, String node_id){
-        Thread thread = new Thread(new LogSaverThread(logs.entrySet().iterator(), "./" + node_id));
+    public static Thread saveLogs(Map<String, Log> logs, String node_id, LinkedList<Log> lastLogs) {
+        Thread thread = new Thread(new LogSaverThread(logs.entrySet().iterator(), lastLogs.iterator(), "./" + node_id + "/"));
         thread.start();
+        return thread;
     }
 }

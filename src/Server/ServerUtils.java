@@ -41,12 +41,12 @@ public class ServerUtils {
     final static int UDP_MULTICAST = 3;
     final static int RMI_PIPE = 4;
 
-    final static char JOIN_MSG = 'j';
-    final static char LEAVE_MSG = 'l';
-    final static char JOIN_RESP_MSG = 'r';
-    final static char PUT_MSG = 'p';
-    final static char GET_MSG = 'g';
-    final static char DEL_MSG = 'd';
+    public final static char JOIN_MSG = 'j';
+    public final static char LEAVE_MSG = 'l';
+    public final static char JOIN_RESP_MSG = 'r';
+    public final static char PUT_MSG = 'p';
+    public final static char GET_MSG = 'g';
+    public final static char DEL_MSG = 'd';
 
     final static List<Character> TCP_VALID_MSGS = Arrays.asList(PUT_MSG, GET_MSG, DEL_MSG);
 

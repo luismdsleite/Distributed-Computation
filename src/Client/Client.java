@@ -86,7 +86,9 @@ public class Client {
               if (data.length > 0) {
                 dos.write(data, 0, data.length);
               }
+
               outFileSocket.close();
+              fileSocket.close();
             } catch (FileNotFoundException e) {
               System.out.println("An error occurred.");
               e.printStackTrace();

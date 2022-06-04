@@ -67,18 +67,6 @@ public class FileHandlerThread implements Runnable {
             var clientIP = parsedMsg[1];
             var fileName = filePath + hashStr(parsedMsg[2]);
 
-            CompletionHandler<Integer, Object> handler = new CompletionHandler<Integer, Object>() {
-                @Override
-                public void completed(Integer result, Object attachment) {
-                    System.out.println("Completed");
-                }
-
-                @Override
-                public void failed(Throwable exc, Object attachment) {
-                    System.out.println("Failed" + exc);
-                }
-            };
-
             try {
                 final Socket tcpSocket = new Socket(clientIP, 6660);
                 while (!tcpSocket.isBound())
@@ -104,7 +92,28 @@ public class FileHandlerThread implements Runnable {
                             fileBuffer.put(data);
                             long position = 0;
                             fileBuffer.flip();
-                            fileChannel.write(fileBuffer, position, buffer, handler);
+                            fileChannel.write(fileBuffer, position, buffer, new CompletionHandler<Integer, Object>() {
+                                @Override
+                                public void completed(Integer result, Object attachment) {
+                                    // TODO Auto-generated method stub
+                                    try {
+                                        outStream.close();
+                                    } catch (IOException e) {
+                                        // TODO Auto-generated catch block
+                                        e.printStackTrace();
+                                    }
+                                }
+
+                                @Override
+                                public void failed(Throwable exc, Object attachment) {
+                                    try {
+                                        outStream.close();
+                                    } catch (IOException e) {
+                                        // TODO Auto-generated catch block
+                                        e.printStackTrace();
+                                    }
+                                }
+                            });
                         } catch (IOException e) {
                             System.out.println(e.toString());
                         }

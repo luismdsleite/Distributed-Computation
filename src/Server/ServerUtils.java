@@ -44,6 +44,7 @@ public class ServerUtils {
     public final static char JOIN_MSG = 'j';
     public final static char LEAVE_MSG = 'l';
     public final static char JOIN_RESP_MSG = 'r';
+    public final static char LEAVE_RESP_MSG = 'a';
     public final static char PUT_MSG = 'p';
     public final static char GET_MSG = 'g';
     public final static char DEL_MSG = 'd';

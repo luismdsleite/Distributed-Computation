@@ -97,6 +97,7 @@ public class FileHandlerThread implements Runnable {
                                 public void completed(Integer result, Object attachment) {
                                     // TODO Auto-generated method stub
                                     try {
+                                        tcpSocket.close();
                                         outStream.close();
                                     } catch (IOException e) {
                                         // TODO Auto-generated catch block
@@ -107,6 +108,7 @@ public class FileHandlerThread implements Runnable {
                                 @Override
                                 public void failed(Throwable exc, Object attachment) {
                                     try {
+                                        tcpSocket.close();
                                         outStream.close();
                                     } catch (IOException e) {
                                         // TODO Auto-generated catch block
@@ -120,6 +122,7 @@ public class FileHandlerThread implements Runnable {
 
                         break;
                     case ServerUtils.GET_MSG:
+                        System.out.println("RECEIVED GET");
                         try {
                             AsynchronousFileChannel fileChannel = AsynchronousFileChannel.open(Paths.get(fileName),
                                     StandardOpenOption.READ);
@@ -146,7 +149,14 @@ public class FileHandlerThread implements Runnable {
 
                                 @Override
                                 public void failed(Throwable exc, ByteBuffer attachment) {
-                                    System.out.println("Failed" + exc);
+                                    try {
+                                        System.out.println("Failed");
+                                        tcpSocket.close();
+                                        outStream.close();
+                                    } catch (IOException e) {
+                                        // TODO Auto-generated catch block
+                                        e.printStackTrace();
+                                    }
                                 }
                             };
 

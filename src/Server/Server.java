@@ -1,11 +1,12 @@
 package Server;
 
-import java.io.File;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.NetworkInterface;
+import java.net.Socket;
 import java.net.StandardProtocolFamily;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
@@ -331,7 +332,6 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
                                     case ServerUtils.PUT_MSG:
                                     case ServerUtils.GET_MSG:
                                     case ServerUtils.DEL_MSG:
-
                                         var fileHash = ServerLabel.hashString(parsedMsg.get(2));
                                         var targetServerLabel = active_nodes.getServer(new ServerKey(fileHash));
                                         if (targetServerLabel.getNodeID().equals(node_id)) {
@@ -341,6 +341,23 @@ public class Server extends UnicastRemoteObject implements MembershipInterface {
 
                                         } else {
 
+                                            try {
+                                                Socket socket = new Socket(targetServerLabel.getNodeID(),
+                                                        targetServerLabel.getPort());
+                                                DataOutputStream dOut = new DataOutputStream(socket.getOutputStream());
+                                                var Sendmsg = ("" + parsedMsg.get(1) + " " + parsedMsg.get(2))
+                                                        .getBytes();
+                                                ByteBuffer out = ByteBuffer.allocate(512);
+                                                out.putChar(msgCode);
+                                                out.putInt(Sendmsg.length);
+                                                out.put(Sendmsg);
+                                                out.flip();
+                                                dOut.write(out.array(), 0, out.limit());
+                                                dOut.flush();
+                                                socket.close();
+                                            } catch (Exception e) {
+                                                // TODO: handle exception
+                                            }
                                         }
 
                                         buffer.clear();

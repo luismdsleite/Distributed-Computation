@@ -1,18 +1,28 @@
-## Getting Started
+# Assign 2: Distributed and Partition Key-Value Store
 
-Welcome to the VS Code Java world. Here is a guideline to help you get started to write Java code in Visual Studio Code.
+## Folders and their meaning:
 
-## Folder Structure
+* [src](./src): Code used
+    * [Client](./src/Client): Where the client executable is stored.
+    * [FileHandler](./src/FileHandler): Thread resposible for everything related to Store functions (put, get, delete).
+    * [Hash](./src/Hash): All the files responsible for the Hash Ring.
+    * [Membership](./src/Membership): Everything related to logs and RMI
+    * [Server](./src/Server): Code that is used to setup a Service Node registered to a cluster, main component of this project
+* [bin](./bin): Compiled Java Code 
 
-The workspace contains two folders by default, where:
+## How to execute the code:
 
-- `src`: the folder to maintain sources
-- `lib`: the folder to maintain dependencies
+To **start** a Service Node run `java -cp ./bin Server.Server <IP_mcast_addr> <IP_mcast_port> <node_id>  <node_port>`
+- \<node_id\> IP of the Service Node
+- \<node_port\> Node of the Service Node
+- <IP_mcast_addr> UDP IP used for Multicast
+- <IP_mcast_port> UDP Port used for Multicast
 
-Meanwhile, the compiled output files will be generated in the `bin` folder by default.
+To execute the client run `java -cp ./bin Client.Client <node_id> <node_port> <operation> [<opnd>]`
 
-> If you want to customize the folder structure, open `.vscode/settings.json` and update the related settings there.
-
-## Dependency Management
-
-The `JAVA PROJECTS` view allows you to manage your dependencies. More details can be found [here](https://github.com/microsoft/vscode-java-dependency#manage-dependencies).
+Supported \<operation\> include
+- `join`
+- `leave`
+- `put` requires a file name
+- `get` requires a file name
+- `delete` requires a file name
